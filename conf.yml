@@ -1,0 +1,4 @@
+# Server configurations
+service:
+  nats: "nats://demo.nats.io"
+  subject: "ns.oss.router"
