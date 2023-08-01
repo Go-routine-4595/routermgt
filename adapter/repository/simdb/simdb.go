@@ -33,7 +33,7 @@ func (s *Simdb) GetRouter(router domain.Router, tenant string) (domain.Router, b
 
 }
 
-func (s *Simdb) GetPaged(page domain.Pagination, tenant string) *[]domain.Router {
+func (s *Simdb) GetPaged(page domain.Pagination, tenant string) (*[]domain.Router, int) {
 	var (
 		re *[]domain.Router
 		l  int
@@ -41,6 +41,7 @@ func (s *Simdb) GetPaged(page domain.Pagination, tenant string) *[]domain.Router
 		i  int
 		r  int
 	)
+	// page.Page start at index 0 to ... ceil(l/page.Limit)
 	s.tenantdbLock.RLock()
 	defer s.tenantdbLock.RUnlock()
 
@@ -50,22 +51,32 @@ func (s *Simdb) GetPaged(page domain.Pagination, tenant string) *[]domain.Router
 	if r != 0 {
 		p++
 	}
+
 	re = new([]domain.Router)
-	// one have only one page i.e. page.limit > l or we are at the last page
-	if p == 1 || p == page.Page {
+
+	// we are out of range!
+	if (page.Page * page.Limit) > l {
+		return re, p - 1
+	}
+
+	// /!\ p and page.Page index are different p [1..n] page.Page [0..n-1] page.Page is 0 indexed
+	// p indicates the number of page(s)
+	// p == 1 && page.Limit > l we have only one page and the limit asked is bigger than the number of elements
+	// p == page.Limit + 1 && page.Limit > l this is the last page and there is fewer elements than the limit asked
+	if (p == 1 && page.Limit > l) || (p == page.Page+1 && page.Limit > l) {
 		*re = make([]domain.Router, l)
-	} else if p < page.Page {
+	} else {
 		*re = make([]domain.Router, page.Limit)
 	}
 
 	for _, v := range s.tenantdb[tenant] {
-		if i >= (p*(page.Page-1)) && i < (p*(page.Page-1))+page.Limit {
-			(*re)[i-(p*(page.Page-1))] = v
+		if i >= (page.Page*page.Limit) && i < ((page.Page+1)*page.Limit) {
+			(*re)[i-(page.Page*(page.Limit))] = v
 		}
 		i++
 	}
 
-	return re
+	return re, p - 1
 }
 
 func (s *Simdb) Add(routers []domain.Router, tenant string) *[]domain.Router {

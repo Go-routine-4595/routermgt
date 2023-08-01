@@ -24,7 +24,7 @@ type message struct {
 
 type IService interface {
 	AddRouters(ctx context.Context, routers []domain.Router, tenant string) *[]domain.Router
-	GetPagedRouters(ctx context.Context, page domain.Pagination, tenant string) *[]domain.Router
+	GetPagedRouters(ctx context.Context, page domain.Pagination, tenant string) (*[]domain.Router, int)
 	GetRouter(ctx context.Context, router domain.Router, tenant string) *domain.Router
 	DeleteRouters(ctx context.Context, routers []domain.Router, tenant string)
 }
@@ -34,7 +34,7 @@ type ApiServer struct {
 	urlBroker string
 	subject   string
 	con       *nats.Conn
-	svc       IService
+	next      IService
 }
 
 func NewApiService(svc interface{}, u string, s string) *ApiServer {
@@ -48,7 +48,7 @@ func NewApiService(svc interface{}, u string, s string) *ApiServer {
 		urlBroker: u,
 		con:       c,
 		subject:   s,
-		svc:       svc.(IService),
+		next:      svc.(IService),
 	}
 }
 
@@ -58,19 +58,19 @@ func connect(u string) (*nats.Conn, error) {
 }
 
 func (a *ApiServer) AddRouters(routers []domain.Router, tenant string) *[]domain.Router {
-	return a.svc.AddRouters(a.ctx, routers, tenant)
+	return a.next.AddRouters(a.ctx, routers, tenant)
 }
 
 func (a *ApiServer) GetRouters(routers domain.Router, tenant string) *domain.Router {
-	return a.svc.GetRouter(a.ctx, routers, tenant)
+	return a.next.GetRouter(a.ctx, routers, tenant)
 }
 
-func (a *ApiServer) GetPagedRouters(page domain.Pagination, tenant string) *[]domain.Router {
-	return a.svc.GetPagedRouters(a.ctx, page, tenant)
+func (a *ApiServer) GetPagedRouters(page domain.Pagination, tenant string) (*[]domain.Router, int) {
+	return a.next.GetPagedRouters(a.ctx, page, tenant)
 }
 
 func (a *ApiServer) DeleteRouters(routers []domain.Router, tenant string) {
-	a.svc.DeleteRouters(a.ctx, routers, tenant)
+	a.next.DeleteRouters(a.ctx, routers, tenant)
 }
 
 func (a *ApiServer) Start() {
@@ -81,7 +81,7 @@ func (a *ApiServer) Start() {
 			b   []byte
 			m   message
 		)
-		fmt.Println("Create: ", string(msg.Data))
+		//fmt.Println("Create: ", string(msg.Data))
 		err = json.Unmarshal(msg.Data, &m)
 		if err != nil {
 			fmt.Println("error unmarshalling: ", err)
@@ -166,10 +166,13 @@ func (a *ApiServer) getCB(in []byte, tenant string) ([]byte, error) {
 
 func (a *ApiServer) getPagedCB(in []byte, tenant string) ([]byte, error) {
 	var (
-		page domain.Pagination
-		ret  *[]domain.Router
-		out  []byte
-		err  error
+		page     domain.Pagination
+		out      []byte
+		err      error
+		response struct {
+			Last    int              `json:"last"`
+			Routers *[]domain.Router `json:"routers"`
+		}
 	)
 	err = json.Unmarshal(in, &page)
 	if err != nil {
@@ -177,19 +180,53 @@ func (a *ApiServer) getPagedCB(in []byte, tenant string) ([]byte, error) {
 		return out, err
 	}
 
-	ret = a.GetPagedRouters(page, tenant)
+	response.Routers, response.Last = a.GetPagedRouters(page, tenant)
 
-	if ret != nil {
-		out, err = json.Marshal(ret)
-		if err != nil {
-			fmt.Println("err unmarshalling answer: ", err)
-			return out, err
-		}
-		return out, nil
+	out, err = json.Marshal(response)
+	if err != nil {
+		fmt.Println("err unmarshalling answer: ", err)
+		return out, err
 	}
-	return []byte(""), nil
+
+	return out, nil
+
 }
 
+/*
+	{
+	  "_metadata":
+	  {
+	      "page": 5,
+	      "per_page": 20,
+	      "page_count": 20,
+	      "total_count": 521,
+	      "Links": [
+	        {"self": "/products?page=5&per_page=20"},
+	        {"first": "/products?page=0&per_page=20"},
+	        {"previous": "/products?page=4&per_page=20"},
+	        {"next": "/products?page=6&per_page=20"},
+	        {"last": "/products?page=26&per_page=20"},
+	      ]
+	  },
+	  "records": [
+	    {
+	      "id": 1,
+	      "name": "Widget #1",
+	      "uri": "/products/1"
+	    },
+	    {
+	      "id": 2,
+	      "name": "Widget #2",
+	      "uri": "/products/2"
+	    },
+	    {
+	      "id": 3,
+	      "name": "Widget #3",
+	      "uri": "/products/3"
+	    }
+	  ]
+	}
+*/
 func (a *ApiServer) deleteCB(in []byte, tenant string) ([]byte, error) {
 	var (
 		routers []domain.Router

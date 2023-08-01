@@ -23,7 +23,7 @@ import (
 
 type IService interface {
 	AddRouters(ctx context.Context, routers []domain.Router, tenant string) *[]domain.Router
-	GetPagedRouters(ctx context.Context, page domain.Pagination, tenant string) *[]domain.Router
+	GetPagedRouters(ctx context.Context, page domain.Pagination, tenant string) (*[]domain.Router, int)
 	GetRouter(ctx context.Context, router domain.Router, tenant string) *domain.Router
 	DeleteRouters(ctx context.Context, routers []domain.Router, tenant string)
 }
@@ -47,10 +47,10 @@ func (s *LoggingService) AddRouters(ctx context.Context, r []domain.Router, tena
 		var str string
 		var sreq string
 		if rep != nil {
-			str = fmt.Sprintf("%v", rep)
+			str = fmt.Sprintf("%+v", rep)
 		}
-		if len(r) < 5 {
-			sreq = fmt.Sprintf("%v", r)
+		if len(r) < 21 {
+			sreq = fmt.Sprintf("%+v", r)
 		} else {
 			sreq = fmt.Sprintf("request too large: %d routers being created", len(r))
 		}
@@ -69,8 +69,8 @@ func (s *LoggingService) DeleteRouters(ctx context.Context, r []domain.Router, t
 
 	defer func(start time.Time) {
 		var sreq string
-		if len(r) < 5 {
-			sreq = fmt.Sprintf("%v", r)
+		if len(r) < 21 {
+			sreq = fmt.Sprintf("%+v", r)
 		} else {
 			sreq = fmt.Sprintf("request too large: %d routers being created", len(r))
 		}
@@ -84,25 +84,26 @@ func (s *LoggingService) DeleteRouters(ctx context.Context, r []domain.Router, t
 	s.next.DeleteRouters(ctx, r, tenant)
 }
 
-func (s *LoggingService) GetPagedRouters(ctx context.Context, page domain.Pagination, tenant string) (rep *[]domain.Router) {
+func (s *LoggingService) GetPagedRouters(ctx context.Context, page domain.Pagination, tenant string) (rep *[]domain.Router, last int) {
 
 	defer func(start time.Time) {
 		var str string
 		var sreq string
 		if rep != nil {
-			if len(*rep) < 5 {
-				str = fmt.Sprintf("%v", *rep)
+			if len(*rep) < 21 {
+				str = fmt.Sprintf("%+v", *rep)
 			} else {
-				str = fmt.Sprintf("%v", *rep)
+				str = fmt.Sprintf("%v %v", "too much data nb router returned ", len(*rep))
 			}
 		}
 
-		sreq = fmt.Sprintf("%v", page)
+		sreq = fmt.Sprintf("%+v", page)
 
 		s.log.Info().
 			Str("method", "GetPagedRouters").
 			Str("request", sreq).
 			Str("response", str).
+			Int("last", last).
 			Str("tenant", tenant).
 			Dur("took", time.Since(start)).Send()
 	}(time.Now())
@@ -116,9 +117,9 @@ func (s *LoggingService) GetRouter(ctx context.Context, r domain.Router, tenant 
 		var str string
 		var sreq string
 
-		str = fmt.Sprintf("%v", rep)
+		str = fmt.Sprintf("%+v", rep)
 
-		sreq = fmt.Sprintf("%v", r)
+		sreq = fmt.Sprintf("%+v", r)
 
 		s.log.Info().
 			Str("method", "GetRouters").

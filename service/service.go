@@ -7,7 +7,7 @@ import (
 
 type IRepository interface {
 	Add(routes []domain.Router, tenant string) *[]domain.Router
-	GetPaged(page domain.Pagination, tenant string) *[]domain.Router
+	GetPaged(page domain.Pagination, tenant string) (*[]domain.Router, int)
 	GetRouter(router domain.Router, tenant string) (domain.Router, bool)
 	Delete(router []domain.Router, tenant string)
 }
@@ -29,7 +29,7 @@ func (s *Service) AddRouters(ctx context.Context, routers []domain.Router, tenan
 	return s.rep.Add(routers, tenant)
 }
 
-func (s *Service) GetPagedRouters(ctx context.Context, page domain.Pagination, tenant string) *[]domain.Router {
+func (s *Service) GetPagedRouters(ctx context.Context, page domain.Pagination, tenant string) (*[]domain.Router, int) {
 	return s.rep.GetPaged(page, tenant)
 }
 

@@ -21,3 +21,4 @@
 go.work
 /go.sum
 /.idea/vcs.xml
+.DS_Store
