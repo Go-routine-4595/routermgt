@@ -33,6 +33,7 @@ func (s *Simdb) GetRouter(router domain.Router, tenant string) (domain.Router, b
 
 }
 
+// GetPaged return a pointer of a slice of routers, and the total number of page with the given limit.
 func (s *Simdb) GetPaged(page domain.Pagination, tenant string) (*[]domain.Router, int) {
 	var (
 		re *[]domain.Router
@@ -68,7 +69,8 @@ func (s *Simdb) GetPaged(page domain.Pagination, tenant string) (*[]domain.Route
 	} else {
 		*re = make([]domain.Router, page.Limit)
 	}
-
+	// /!\ we are using a map to simulate a DB,  Go spec says that the iteration order over maps is not specified.
+	// That is to say, you should not expect the map keys to appear in any particular order.
 	for _, v := range s.tenantdb[tenant] {
 		if i >= (page.Page*page.Limit) && i < ((page.Page+1)*page.Limit) {
 			(*re)[i-(page.Page*(page.Limit))] = v
@@ -79,6 +81,7 @@ func (s *Simdb) GetPaged(page domain.Pagination, tenant string) (*[]domain.Route
 	return re, p - 1
 }
 
+// Add a list of router and return a list of routers that are already in the DB
 func (s *Simdb) Add(routers []domain.Router, tenant string) *[]domain.Router {
 
 	var (
@@ -108,11 +111,11 @@ func (s *Simdb) Add(routers []domain.Router, tenant string) *[]domain.Router {
 	return re
 }
 
-func (s *Simdb) Delete(router []domain.Router, tenant string) {
+func (s *Simdb) Delete(routers []domain.Router, tenant string) {
 	s.tenantdbLock.Lock()
 	defer s.tenantdbLock.Unlock()
 
-	for _, v := range router {
+	for _, v := range routers {
 		delete(s.tenantdb[tenant], v.RouterSerial)
 	}
 }

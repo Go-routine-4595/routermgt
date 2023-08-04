@@ -6,10 +6,12 @@ import (
 )
 
 type IRepository interface {
+	// Add a list of router and return a list of routers that are already in the DB
 	Add(routes []domain.Router, tenant string) *[]domain.Router
+	// GetPaged return a pointer of a slice of routers, and the total number of page with the given limit.
 	GetPaged(page domain.Pagination, tenant string) (*[]domain.Router, int)
 	GetRouter(router domain.Router, tenant string) (domain.Router, bool)
-	Delete(router []domain.Router, tenant string)
+	Delete(routers []domain.Router, tenant string)
 }
 
 type IService interface {

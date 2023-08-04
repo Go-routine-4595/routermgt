@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"github.com/Go-routine-4995/routermgt/domain"
 	"github.com/nats-io/nats.go"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 )
 
 const (
@@ -34,10 +38,11 @@ type ApiServer struct {
 	urlBroker string
 	subject   string
 	con       *nats.Conn
+	wg        *sync.WaitGroup
 	next      IService
 }
 
-func NewApiService(svc interface{}, u string, s string) *ApiServer {
+func NewApiService(svc interface{}, u string, s string, wg *sync.WaitGroup) *ApiServer {
 
 	c, err := connect(u)
 	if err != nil {
@@ -48,6 +53,7 @@ func NewApiService(svc interface{}, u string, s string) *ApiServer {
 		urlBroker: u,
 		con:       c,
 		subject:   s,
+		wg:        wg,
 		next:      svc.(IService),
 	}
 }
@@ -75,18 +81,20 @@ func (a *ApiServer) DeleteRouters(routers []domain.Router, tenant string) {
 
 func (a *ApiServer) Start() {
 	fmt.Println(" subscribing to: ", a.subject)
+
 	_, err := a.con.QueueSubscribe(a.subject, queue, func(msg *nats.Msg) {
 		var (
 			err error
 			b   []byte
 			m   message
 		)
-		//fmt.Println("Create: ", string(msg.Data))
+
 		err = json.Unmarshal(msg.Data, &m)
 		if err != nil {
 			fmt.Println("error unmarshalling: ", err)
 			//return
 		}
+		fmt.Printf("Receive message type: %d message lenght: %d \n", m.Mtype, len(m.Data))
 		// Call the right action here
 
 		switch m.Mtype {
@@ -112,6 +120,17 @@ func (a *ApiServer) Start() {
 	}
 
 	for {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGINT)
+		signal.Notify(c, syscall.SIGTERM)
+
+		<-c
+		fmt.Println("Shutting down connection...")
+		a.con.Flush()
+		a.con.Close()
+		a.wg.Wait()
+		fmt.Println("DB closed, Connection tear-off -> exiting now!")
+		return
 	}
 }
 
@@ -192,41 +211,6 @@ func (a *ApiServer) getPagedCB(in []byte, tenant string) ([]byte, error) {
 
 }
 
-/*
-	{
-	  "_metadata":
-	  {
-	      "page": 5,
-	      "per_page": 20,
-	      "page_count": 20,
-	      "total_count": 521,
-	      "Links": [
-	        {"self": "/products?page=5&per_page=20"},
-	        {"first": "/products?page=0&per_page=20"},
-	        {"previous": "/products?page=4&per_page=20"},
-	        {"next": "/products?page=6&per_page=20"},
-	        {"last": "/products?page=26&per_page=20"},
-	      ]
-	  },
-	  "records": [
-	    {
-	      "id": 1,
-	      "name": "Widget #1",
-	      "uri": "/products/1"
-	    },
-	    {
-	      "id": 2,
-	      "name": "Widget #2",
-	      "uri": "/products/2"
-	    },
-	    {
-	      "id": 3,
-	      "name": "Widget #3",
-	      "uri": "/products/3"
-	    }
-	  ]
-	}
-*/
 func (a *ApiServer) deleteCB(in []byte, tenant string) ([]byte, error) {
 	var (
 		routers []domain.Router

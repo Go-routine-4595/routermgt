@@ -2,3 +2,12 @@
 service:
   nats: "nats://demo.nats.io"
   subject: "ns.oss.router"
+
+database:
+  address: "34.29.140.25:5432"
+  user: "postgres"
+  password: ")KNiE>GF`kx[cE6Z"
+  database: "postgres"
+  client-cert: "certs/client-cert.pem"
+  client-key: "certs/client-key.pem"
+  server-cert: "certs/server-ca.pem"
