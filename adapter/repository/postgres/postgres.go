@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/Go-routine-4995/routermgt/domain"
 	"github.com/go-pg/pg/v10"
+	"github.com/go-pg/pg/v10/orm"
 	"log"
 	"os"
 	"os/signal"
@@ -15,12 +16,14 @@ import (
 )
 
 type Rule struct {
+	Id       int    `pg:",pk"`
 	RuleID   string `json:"action" pg:"type:uuid""`
 	RuleByte []byte `json:"condition"`
 }
 
 type Profile struct {
 	domain.Router
+	Id    int      `pg:",pk"`
 	Rules []string `json:"rules"`
 }
 
@@ -90,28 +93,37 @@ func NewPostgres(address string, user string, password string, database string, 
 // Add a list of router and return a list of routers that are already in the DB
 func (p *Postgres) Add(routes []domain.Router, tenant string) *[]domain.Router {
 	var (
-		err      error
-		receiver Profile
+		err        error
+		r          domain.Router
+		res        orm.Result
+		resRouters *[]domain.Router
 	)
 
 	for _, v := range routes {
-		receiver.Router = v
-		_, err = p.db.Model(&receiver).
+		r = v
+		res, err = p.db.Model(&r).
 			OnConflict("DO NOTHING").
 			Insert()
 		if err != nil {
 			fmt.Println(err)
 		}
+		if res.RowsAffected() <= 0 {
+			if resRouters == nil {
+				resRouters = new([]domain.Router)
+				*resRouters = make([]domain.Router, 0)
+			}
+			*resRouters = append(*resRouters, v)
+			fmt.Println("row already existing")
+		}
 	}
 
-	return nil
+	return resRouters
 }
 
 // GetPaged return a pointer of a slice of routers, and the total number of page with the given limit.
 func (p *Postgres) GetPaged(page domain.Pagination, tenant string) (*[]domain.Router, int) {
 	var (
 		routers   *[]domain.Router
-		receiver  []Profile
 		err       error
 		count     int
 		ps        int
@@ -122,7 +134,7 @@ func (p *Postgres) GetPaged(page domain.Pagination, tenant string) (*[]domain.Ro
 	routers = new([]domain.Router)
 	*routers = make([]domain.Router, 0)
 
-	count, err = p.db.Model((*Profile)(nil)).Count()
+	count, err = p.db.Model((*domain.Router)(nil)).Count()
 
 	ps = count / page.Limit
 	r = count % page.Limit
@@ -149,41 +161,41 @@ func (p *Postgres) GetPaged(page domain.Pagination, tenant string) (*[]domain.Ro
 
 	// we need to find the right page in the DB to do so we are fetching one row (sorted by router_serial) the last row of a page
 	// if the last row of the page is smaller that the previous router_serial then we are in the right offset/page
-	err = p.db.Model(&receiver).Limit(fetchSize).Offset(ps - 1).Select()
+	err = p.db.Model(routers).Limit(fetchSize).Offset(ps - 1).Select()
 	if err != nil {
 		fmt.Println(err)
 	}
-	for i, k := range receiver {
-		(*routers)[i] = k.Router
-	}
+	//for i, k := range receiver {
+	//	(*routers)[i] = k.Router
+	//}
 
 	return routers, ps - 1
 }
 
 func (p *Postgres) GetRouter(router domain.Router, tenant string) (domain.Router, bool) {
 	var (
-		profile Profile
-		err     error
+		res domain.Router
+		err error
 	)
 
 	fmt.Println("GetRouter")
-	err = p.db.Model(&profile).Where("router_serial = ?", router.RouterSerial).Limit(1).Select()
-	fmt.Printf("GetRouter returned: %+v \n", profile.Router)
+	err = p.db.Model(&res).Where("router_serial = ?", res.RouterSerial).Limit(1).Select()
+	fmt.Printf("GetRouter returned: %+v \n", res)
 	if err != nil {
 		fmt.Println(err)
-		return profile.Router, false
+		return res, false
 	}
-	return profile.Router, true
+	return res, true
 }
 
 func (p *Postgres) Delete(routers []domain.Router, tenant string) {
 	var (
-		receiver Profile
-		err      error
+		router domain.Router
+		err    error
 	)
 
 	for _, k := range routers {
-		_, err = p.db.Model(&receiver).Where("router_serial =?", k.RouterSerial).Delete()
+		_, err = p.db.Model(&router).Where("router_serial =?", k.RouterSerial).Delete()
 		if err != nil {
 			fmt.Println(err)
 		}

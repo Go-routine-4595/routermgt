@@ -2,8 +2,8 @@ package domain
 
 type Router struct {
 	// in: query
-	RouterID            string `json:"router-id" form:"router-id"`
-	RouterSerial        string `json:"router-serial" form:"router-serial"`
+	RouterID            string `json:"router-id" form:"router-id" pg:"type:uuid" pg:",unique"`
+	RouterSerial        string `json:"router-serial" form:"router-serial" pg:",unique"`
 	OperatorName        string `json:"operator-name" form:"operator-name"`
 	IsoCountryCode      string `json:"iso-country-code" form:"iso-country-code"`
 	Mac                 string `json:"mac" form:"mac"`

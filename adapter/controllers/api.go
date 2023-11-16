@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	messageGet = iota
+	messageGet = iota + 100
 	messageGetPaged
 	messageCreate
 	messageDelete
@@ -94,7 +94,7 @@ func (a *ApiServer) Start() {
 			fmt.Println("error unmarshalling: ", err)
 			//return
 		}
-		fmt.Printf("Receive message type: %d message lenght: %d \n", m.Mtype, len(m.Data))
+		// fmt.Printf("Receive message type: %d message lenght: %d \n", m.Mtype, len(m.Data))
 		// Call the right action here
 
 		switch m.Mtype {
